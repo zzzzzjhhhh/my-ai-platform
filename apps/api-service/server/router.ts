@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { router, publicProcedure } from './trpc';
 import { itemRouter } from './routers/item';
+import { aiAgentRouter } from './routers/ai-agent';
 
 export const appRouter = router({
   hello: publicProcedure
@@ -11,6 +12,7 @@ export const appRouter = router({
       };
     }),
   item: itemRouter,
+  aiAgent: aiAgentRouter,
 });
 
 export type AppRouter = typeof appRouter;
