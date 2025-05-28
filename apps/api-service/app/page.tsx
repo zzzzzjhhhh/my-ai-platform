@@ -1,4 +1,4 @@
-import { TrpcDemo } from '@/components/trpc-demo';
+import TrpcDemo from '@/components/trpc-demo';
 
 export default function Home() {
   return (
