@@ -12,7 +12,7 @@ export const appRouter = router({
       };
     }),
   item: itemRouter,
-  aiAgent: aiAgentRouter,
+  "ai-agent": aiAgentRouter,
 });
 
 export type AppRouter = typeof appRouter;

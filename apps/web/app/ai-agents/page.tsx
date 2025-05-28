@@ -10,14 +10,14 @@ export default function AIAgentsPage() {
   });
 
   // TRPC queries and mutations
-  const { data: agents, refetch } = trpc.aiAgent.list.useQuery({ userId: 'user_2mxNg1sxe8Eoj1r1MSDvN1ZMwkJ' }); // TODO: Get from auth
-  const createAgent = trpc.aiAgent.create.useMutation({
+  const { data: agents, refetch } = trpc['ai-agent'].list.useQuery({ userId: 'user_2mxNg1sxe8Eoj1r1MSDvN1ZMwkJ' }); // TODO: Get from auth
+  const createAgent = trpc['ai-agent'].create.useMutation({
     onSuccess: () => {
       refetch();
       setFormData({ name: '', instructions: '' });
     },
   });
-  const deleteAgent = trpc.aiAgent.delete.useMutation({
+  const deleteAgent = trpc['ai-agent'].delete.useMutation({
     onSuccess: () => {
       refetch();
     },
