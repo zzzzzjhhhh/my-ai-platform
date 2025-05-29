@@ -39,6 +39,12 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
       links: [
         httpBatchLink({
           url: `${getBaseUrl()}/api/trpc`,
+          fetch(url, options) {
+            return fetch(url, {
+              ...options,
+              credentials: 'include',
+            });
+          },
         }),
       ],
     })

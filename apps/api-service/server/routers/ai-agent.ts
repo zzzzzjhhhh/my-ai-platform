@@ -7,11 +7,11 @@ const prisma = new PrismaClient();
 
 export const aiAgentRouter = router({
   list: protectedProcedure
-    .query(async ({ ctx }) => {
+    .query(async ({ctx}) => {
       try {
         return await prisma.aIAgent.findMany({
           where: {
-            userId: ctx.session.user.id,
+            userId: ctx.session.user.id
           },
           orderBy: {
             createdAt: 'desc'
@@ -96,7 +96,7 @@ export const aiAgentRouter = router({
       }
     }),
 
-  delete: publicProcedure
+  delete: protectedProcedure
     .input(z.object({ 
       id: z.string(),
       userId: z.string() // For authorization check
@@ -138,7 +138,7 @@ export const aiAgentRouter = router({
       }
     }),
 
-  getById: publicProcedure
+  getById: protectedProcedure
     .input(z.object({ 
       id: z.string(),
       userId: z.string() // For authorization check
