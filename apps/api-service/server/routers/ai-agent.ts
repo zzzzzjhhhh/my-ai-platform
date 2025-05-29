@@ -1,15 +1,13 @@
 import { z } from 'zod';
 import { router, protectedProcedure } from '../trpc';
-import { PrismaClient } from '../../app/generated/prisma';
 import { TRPCError } from '@trpc/server';
 
-const prisma = new PrismaClient();
 
 export const aiAgentRouter = router({
   list: protectedProcedure
     .query(async ({ctx}) => {
       try {
-        return await prisma.aIAgent.findMany({
+        return await ctx.prisma.aIAgent.findMany({
           where: {
             userId: ctx.session.user.id
           },
@@ -34,7 +32,7 @@ export const aiAgentRouter = router({
     }))
     .mutation(async ({ input, ctx }) => {
       try {
-        const newAgent = await prisma.aIAgent.create({
+        const newAgent = await ctx.prisma.aIAgent.create({
           data: {
             ...input,
             userId: ctx.session.user.id,
@@ -59,7 +57,7 @@ export const aiAgentRouter = router({
     }))
     .mutation(async ({ input, ctx }) => {
       try {
-        const existingAgent = await prisma.aIAgent.findFirst({
+        const existingAgent = await ctx.prisma.aIAgent.findFirst({
           where: {
             id: input.id,
             userId: ctx.session.user.id,
@@ -73,7 +71,7 @@ export const aiAgentRouter = router({
           });
         }
 
-        const updatedAgent = await prisma.aIAgent.update({
+        const updatedAgent = await ctx.prisma.aIAgent.update({
           where: {
             id: input.id,
           },
@@ -101,13 +99,13 @@ export const aiAgentRouter = router({
       id: z.string(),
       userId: z.string() // For authorization check
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       try {
         // First, verify the agent belongs to the user
-        const existingAgent = await prisma.aIAgent.findFirst({
+        const existingAgent = await ctx.prisma.aIAgent.findFirst({
           where: {
             id: input.id,
-            userId: input.userId,
+            userId: ctx.session.user.id,
           },
         });
 
@@ -119,7 +117,7 @@ export const aiAgentRouter = router({
         }
 
         // Delete the AI agent
-        await prisma.aIAgent.delete({
+        await ctx.prisma.aIAgent.delete({
           where: {
             id: input.id,
           },
@@ -143,10 +141,10 @@ export const aiAgentRouter = router({
       id: z.string(),
       userId: z.string() // For authorization check
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       try {
         // Fetch a specific AI agent that belongs to the user
-        const agent = await prisma.aIAgent.findFirst({
+        const agent = await ctx.prisma.aIAgent.findFirst({
           where: {
             id: input.id,
             userId: input.userId,
