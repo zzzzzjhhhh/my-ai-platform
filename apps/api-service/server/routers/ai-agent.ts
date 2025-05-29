@@ -1,19 +1,17 @@
 import { z } from 'zod';
-import { router, publicProcedure } from '../trpc';
+import { router, protectedProcedure } from '../trpc';
 import { PrismaClient } from '../../app/generated/prisma';
 import { TRPCError } from '@trpc/server';
 
 const prisma = new PrismaClient();
 
 export const aiAgentRouter = router({
-  list: publicProcedure
-    .input(z.object({ userId: z.string() }))
-    .query(async ({ input }) => {
+  list: protectedProcedure
+    .query(async ({ ctx }) => {
       try {
-        // Fetch all AI agents for the specific user
         return await prisma.aIAgent.findMany({
           where: {
-            userId: input.userId,
+            userId: ctx.session.user.id,
           },
           orderBy: {
             createdAt: 'desc'
@@ -29,20 +27,17 @@ export const aiAgentRouter = router({
       }
     }),
 
-  create: publicProcedure
+  create: protectedProcedure
     .input(z.object({ 
       name: z.string().min(1, 'Agent name is required'),
       instructions: z.string().min(1, 'Agent instructions are required'),
-      userId: z.string()
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       try {
-        // Create a new AI agent in the database
         const newAgent = await prisma.aIAgent.create({
           data: {
-            name: input.name,
-            instructions: input.instructions,
-            userId: input.userId,
+            ...input,
+            userId: ctx.session.user.id,
           },
         });
         return newAgent;
@@ -56,20 +51,18 @@ export const aiAgentRouter = router({
       }
     }),
 
-  update: publicProcedure
+  update: protectedProcedure
     .input(z.object({ 
       id: z.string(),
       name: z.string().min(1, 'Agent name is required').optional(),
       instructions: z.string().min(1, 'Agent instructions are required').optional(),
-      userId: z.string() // For authorization check
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       try {
-        // First, verify the agent belongs to the user
         const existingAgent = await prisma.aIAgent.findFirst({
           where: {
             id: input.id,
-            userId: input.userId,
+            userId: ctx.session.user.id,
           },
         });
 
@@ -80,7 +73,6 @@ export const aiAgentRouter = router({
           });
         }
 
-        // Update the AI agent
         const updatedAgent = await prisma.aIAgent.update({
           where: {
             id: input.id,

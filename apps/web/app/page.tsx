@@ -1,8 +1,14 @@
+'use client';
+
 import { Button } from "@/components/ui/button"
 
 import Link from "next/link";
+import OAuthLoginButtons from "@/components/auth/OAuthLoginButtons";
+import { useAuth } from "@/components/providers/auth-provider";
 
 export default function Home() {
+  const { user, signOut, session } = useAuth();
+
   return (
     <div className="min-h-screen bg-white">
       <main className="container mx-auto px-4 py-16">
@@ -16,16 +22,20 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-4 justify-center">
-            <Link href="/ai-agents">
-              <Button size="lg">
-                Manage AI Agents
-              </Button>
-            </Link>
-            <Button  size="lg">
-              View Meetings
-            </Button>
-          </div>
+          {session ? (
+            <div className="space-y-4">
+              <p>Welcome, {user?.email || 'User'}!</p>
+              <Button size="lg" onClick={signOut}>Logout</Button>
+              <div className="flex flex-wrap gap-4 justify-center">
+                <Link href="/ai-agents">
+                  <Button size="lg">Manage AI Agents</Button>
+                </Link>
+                <Button size="lg">View Meetings</Button>
+              </div>
+            </div>
+          ) : (
+            <OAuthLoginButtons />
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12 max-w-4xl">
             <div className="p-6 border border-border rounded-lg bg-card">
