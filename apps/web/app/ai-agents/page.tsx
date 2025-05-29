@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { trpc } from '../../components/providers/trpc-provider';
 import { useAuth } from '../../components/providers/auth-provider';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
 
 export default function AIAgentsPage() {
   const { session } = useAuth();
@@ -10,7 +12,7 @@ export default function AIAgentsPage() {
     name: '',
     instructions: '',
   });
-
+  console.log('Session:', session);
   // TRPC queries and mutations
   const { data: agents, refetch, isLoading } = trpc['ai-agent'].list.useQuery(
     undefined,
@@ -50,15 +52,17 @@ export default function AIAgentsPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string, event: React.MouseEvent) => {
+    event.stopPropagation();
     if (!session) {
       console.error('No session, cannot delete agent');
       return;
     }
     if (confirm('Are you sure you want to delete this AI agent?')) {
       try {
-        await deleteAgent.mutateAsync({ 
+        await deleteAgent.mutateAsync({
           id,
+          userId: session.user.id,
         });
       } catch (error) {
         console.error('Failed to delete AI agent:', error);
@@ -130,18 +134,31 @@ export default function AIAgentsPage() {
           <ul className="space-y-4">
             {agents.map((agent) => (
               <li key={agent.id} className="p-4 border rounded-lg shadow-sm bg-card flex justify-between items-start">
-                <div>
-                  <h3 className="text-lg font-semibold text-foreground">{agent.name}</h3>
-                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">{agent.instructions}</p>
-                  <p className="text-xs text-muted-foreground mt-1">ID: {agent.id}</p>
-                </div>
-                <button 
-                  onClick={() => handleDelete(agent.id)} 
-                  disabled={deleteAgent.isPending && deleteAgent.variables?.id === agent.id}
-                  className="px-3 py-1 bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 disabled:opacity-50 text-sm"
-                >
-                  {(deleteAgent.isPending && deleteAgent.variables?.id === agent.id) ? 'Deleting...' : 'Delete'}
-                </button>
+                 <Link 
+                   href={{
+                     pathname: '/chat-demo',
+                     query: {
+                       id: agent.id,
+                       name: agent.name,
+                       instructions: agent.instructions,
+                     },
+                   }}
+                   className="flex justify-between items-start w-full"
+                 >
+                  <div>
+                    <h3 className="text-lg font-semibold text-foreground">{agent.name}</h3>
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">{agent.instructions}</p>
+                    <p className="text-xs text-muted-foreground mt-1">ID: {agent.id}</p>
+                  </div>
+                  <Button
+                    onClick={(e) => handleDelete(agent.id, e)} 
+                    disabled={deleteAgent.isPending && deleteAgent.variables?.id === agent.id}
+                    variant="destructive"
+                    size="sm"
+                  >
+                    {(deleteAgent.isPending && deleteAgent.variables?.id === agent.id) ? 'Deleting...' : 'Delete'}
+                  </Button>
+                 </Link>
               </li>
             ))}
           </ul>

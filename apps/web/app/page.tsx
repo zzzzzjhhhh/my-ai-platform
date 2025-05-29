@@ -24,7 +24,7 @@ export default function Home() {
 
           {session ? (
             <div className="space-y-4">
-              <p>Welcome, {user?.email || 'User'}!</p>
+              <p>Welcome, {user?.user_metadata.preferred_username || user?.email || 'User'}!</p>
               <Button size="lg" onClick={signOut}>Logout</Button>
               <div className="flex flex-wrap gap-4 justify-center">
                 <Link href="/ai-agents">
