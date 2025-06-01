@@ -1,0 +1,106 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// Item model for the item CRUD example
+model Item {
+  id          String  @id @default(cuid())
+  name        String
+  description String? @map("description")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("items")
+}
+
+// User model for authentication and user management
+model User {
+  id           String   @id @default(cuid())
+  name         String?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  aiAgents AIAgent[]
+  meetings Meeting[]
+
+  @@map("users")
+}
+
+// AI Agent model for storing agent configurations
+model AIAgent {
+  id           String   @id @default(cuid())
+  name         String
+  instructions String
+  userId       String   @map("user_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  meetings Meeting[]
+
+  @@map("ai_agents")
+}
+
+// Meeting model for storing meeting metadata
+model Meeting {
+  id           String    @id @default(cuid())
+  name         String
+  userId       String    @map("user_id")
+  aiAgentId    String    @map("ai_agent_id")
+  status       String    @default("pending") // pending, active, completed, failed
+  recordingUrl String?   @map("recording_url")
+  startedAt    DateTime? @map("started_at")
+  endedAt      DateTime? @map("ended_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  aiAgent   AIAgent     @relation(fields: [aiAgentId], references: [id], onDelete: Cascade)
+  transcript Transcript?
+  summary   Summary?
+
+  @@map("meetings")
+}
+
+// Transcript model for storing full meeting transcriptions
+model Transcript {
+  id        String   @id @default(cuid())
+  meetingId String   @unique @map("meeting_id")
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@map("transcripts")
+}
+
+// Summary model for storing AI-generated meeting summaries
+model Summary {
+  id        String   @id @default(cuid())
+  meetingId String   @unique @map("meeting_id")
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@map("summaries")
+} 
