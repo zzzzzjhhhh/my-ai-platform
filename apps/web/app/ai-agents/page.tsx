@@ -117,13 +117,13 @@ export default function AIAgentsPage() {
             />
           </div>
         </div>
-        <button 
+        <Button 
           type="submit" 
           disabled={createAgent.isPending}
-          className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50"
+          className="px-4 py-2"
         >
           {createAgent.isPending ? 'Creating...' : 'Create Agent'}
-        </button>
+        </Button>
       </form>
 
       <div>
@@ -133,32 +133,33 @@ export default function AIAgentsPage() {
         {agents && agents.length > 0 && (
           <ul className="space-y-4">
             {agents.map((agent) => (
-              <li key={agent.id} className="p-4 border rounded-lg shadow-sm bg-card flex justify-between items-start">
-                 <Link 
-                   href={{
-                     pathname: '/chat-demo',
-                     query: {
-                       id: agent.id,
-                       name: agent.name,
-                       instructions: agent.instructions,
-                     },
-                   }}
-                   className="flex justify-between items-start w-full"
-                 >
+              <li key={agent.id} className="p-4 border rounded-lg shadow-sm bg-card flex justify-between items-center">
+                <Link 
+                  href={{
+                    pathname: '/chat-demo',
+                    query: {
+                      id: agent.id,
+                      name: agent.name,
+                      instructions: agent.instructions,
+                    },
+                  }}
+                  className="flex-1 cursor-pointer"
+                >
                   <div>
                     <h3 className="text-lg font-semibold text-foreground">{agent.name}</h3>
                     <p className="text-sm text-muted-foreground whitespace-pre-wrap">{agent.instructions}</p>
                     <p className="text-xs text-muted-foreground mt-1">ID: {agent.id}</p>
                   </div>
-                  <Button
-                    onClick={(e) => handleDelete(agent.id, e)} 
-                    disabled={deleteAgent.isPending && deleteAgent.variables?.id === agent.id}
-                    variant="destructive"
-                    size="sm"
-                  >
-                    {(deleteAgent.isPending && deleteAgent.variables?.id === agent.id) ? 'Deleting...' : 'Delete'}
-                  </Button>
-                 </Link>
+                </Link>
+                <Button
+                  onClick={(e) => handleDelete(agent.id, e)} 
+                  disabled={deleteAgent.isPending && deleteAgent.variables?.id === agent.id}
+                  variant="destructive"
+                  size="sm"
+                  className="ml-4"
+                >
+                  {(deleteAgent.isPending && deleteAgent.variables?.id === agent.id) ? 'Deleting...' : 'Delete'}
+                </Button>
               </li>
             ))}
           </ul>
