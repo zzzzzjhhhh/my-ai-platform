@@ -46,7 +46,7 @@ export function ChatDemo({ selectedAgent }: ChatDemoProps) {
      currentMessageIdRef.current = null;
   };
 
-  const handleSendMessage = async (message: string) => {
+  const handleSendMessage = (message: string) => {
     if (!message.trim() || !selectedAgent?.instructions) return;
     
     if (eventSourceRef.current) {
