@@ -5,7 +5,7 @@ import { ChatWindow, ChatWindowRef, ChatWindowProps } from './ChatWindow';
 import { ModelSelector } from './ModelSelector';
 
 interface ChatDemoProps {
-  selectedAgent: ChatWindowProps['selectedAgent']; 
+  selectedAgent: ChatWindowProps['selectedAgent'];
 }
 
 export function ChatDemo({ selectedAgent }: ChatDemoProps) {
@@ -14,31 +14,52 @@ export function ChatDemo({ selectedAgent }: ChatDemoProps) {
   const [error, setError] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState('deepseek/deepseek-r1-0528:free');
   const eventSourceRef = useRef<EventSource | null>(null);
+  const currentMessageIdRef = useRef<string | null>(null);
 
-  // Cleanup EventSource on unmount
   useEffect(() => {
     return () => {
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+      if (currentMessageIdRef.current && chatRef.current) {
+         chatRef.current.finalizeStreamingMessage(currentMessageIdRef.current);
+         currentMessageIdRef.current = null;
       }
     };
-  }, []);
+  }, [chatRef]);
+
+  const handleStopMessage = () => {
+    if (eventSourceRef.current) {
+      console.log('Stopping SSE stream...');
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
+    setIsLoading(false);
+    if (chatRef.current && currentMessageIdRef.current) {
+      chatRef.current.finalizeStreamingMessage(currentMessageIdRef.current);
+      chatRef.current.addAiMessage('Stream stopped by user.');
+      currentMessageIdRef.current = null;
+    } else if (chatRef.current) {
+      chatRef.current.addAiMessage('Stream stopped by user.');
+    }
+     currentMessageIdRef.current = null;
+  };
 
   const handleSendMessage = async (message: string) => {
     if (!message.trim() || !selectedAgent?.instructions) return;
     
     if (eventSourceRef.current) {
-      eventSourceRef.current.close();
+      handleStopMessage();
     }
     
     setIsLoading(true);
     setError(null);
     
-    let currentMessageId: string | null = null;
-    
     try {
       if (chatRef.current) {
-        currentMessageId = chatRef.current.addStreamingAiMessage();
+        const newMessageId = chatRef.current.addStreamingAiMessage();
+        currentMessageIdRef.current = newMessageId;
       }
       const params = new URLSearchParams({
         message: message.trim(),
@@ -57,8 +78,8 @@ export function ChatDemo({ selectedAgent }: ChatDemoProps) {
             throw new Error(data.error);
           }
 
-          if (data.content && chatRef.current && currentMessageId) {
-            chatRef.current.updateStreamingMessage(currentMessageId, data.content);
+          if (data.content && chatRef.current && currentMessageIdRef.current) {
+            chatRef.current.updateStreamingMessage(currentMessageIdRef.current, data.content);
           }
         } catch (parseError) {
           console.error('Error parsing SSE data:', parseError);
@@ -66,11 +87,13 @@ export function ChatDemo({ selectedAgent }: ChatDemoProps) {
       };
 
       eventSource.addEventListener('done', () => {
-        if (chatRef.current && currentMessageId) {
-          chatRef.current.finalizeStreamingMessage(currentMessageId);
+        console.log('SSE stream done');
+        if (chatRef.current && currentMessageIdRef.current) {
+          chatRef.current.finalizeStreamingMessage(currentMessageIdRef.current);
         }
         eventSource.close();
         eventSourceRef.current = null;
+        currentMessageIdRef.current = null;
         setIsLoading(false);
       });
 
@@ -78,7 +101,12 @@ export function ChatDemo({ selectedAgent }: ChatDemoProps) {
         console.error('EventSource error:', error);
         setError('Connection error. Please try again.');
         
-        if (chatRef.current) {
+        if (chatRef.current && currentMessageIdRef.current) {
+           chatRef.current.finalizeStreamingMessage(currentMessageIdRef.current);
+           chatRef.current.addAiMessage(
+            'Sorry, I encountered a connection error while streaming. Please try again.'
+          );
+        } else if (chatRef.current) {
           chatRef.current.addAiMessage(
             'Sorry, I encountered a connection error. Please try again.'
           );
@@ -86,6 +114,7 @@ export function ChatDemo({ selectedAgent }: ChatDemoProps) {
         
         eventSource.close();
         eventSourceRef.current = null;
+        currentMessageIdRef.current = null;
         setIsLoading(false);
       };
 
@@ -107,6 +136,7 @@ export function ChatDemo({ selectedAgent }: ChatDemoProps) {
         eventSourceRef.current.close();
         eventSourceRef.current = null;
       }
+      currentMessageIdRef.current = null;
       setIsLoading(false);
     }
   };
@@ -147,6 +177,7 @@ export function ChatDemo({ selectedAgent }: ChatDemoProps) {
         selectedAgent={selectedAgent}
         onSendMessage={handleSendMessage}
         isLoading={isLoading}
+        onStopMessage={handleStopMessage}
       />
       
       <div className="text-center text-sm text-muted-foreground mt-4 p-4 border rounded-md bg-blue-50">

@@ -21,13 +21,13 @@ interface ModelSelectorProps {
 const AVAILABLE_MODELS: ModelOption[] = [
   {
     id: 'deepseek/deepseek-r1-0528:free',
-    name: 'DeepSeek: R1 0528 (free)',
-    description: 'May 28th update to the original DeepSeek May 28th update to the original DeepSeek R1 Performance on par with OpenAI o1, but open-sourced and with fully open reasoning tokens.',   
+    name: 'DeepSeek: R1 0528',
+    description: 'May 28th update to the original DeepSeek May 28th update to the original DeepSeek R1.',   
     cost: 'free'
   },
   {
     id: 'meta-llama/llama-3.1-8b-instruct:free',
-    name: 'Llama 3.1 8B (Free)',
+    name: 'Llama 3.1 8B',
     description: 'Fast and efficient, good for most conversations',
     cost: 'free'
   },
@@ -84,7 +84,7 @@ export function ModelSelector({ selectedModel, onModelChange, disabled = false }
                       <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded">FREE</span>
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground">{model.description}</p>
+                  <p className="text-xs text-muted-foreground text-wrap">{model.description}</p>
                 </div>
               </Button>
             ))}

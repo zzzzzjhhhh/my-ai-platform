@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Send, Bot, User } from 'lucide-react';
+import { Send, Bot, User, Square } from 'lucide-react';
 
 export interface Message {
   id: string;
@@ -25,6 +25,7 @@ export interface ChatWindowProps {
   };
   onSendMessage?: (message: string) => Promise<void>;
   isLoading?: boolean;
+  onStopMessage?: () => void;
 }
 
 export type ChatWindowRef = {
@@ -35,7 +36,7 @@ export type ChatWindowRef = {
 };
 
 export const ChatWindow = forwardRef<ChatWindowRef, ChatWindowProps>(
-  ({ selectedAgent, onSendMessage, isLoading = false }, ref) => {
+  ({ selectedAgent, onSendMessage, isLoading = false, onStopMessage }, ref) => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputValue, setInputValue] = useState('');
     const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -53,7 +54,7 @@ export const ChatWindow = forwardRef<ChatWindowRef, ChatWindowProps>(
       if (!inputValue.trim() || isLoading) return;
 
       const newMessage: Message = {
-        id: crypto.randomUUID(), 
+        id: crypto.randomUUID(),
         sender: 'user',
         text: inputValue.trim(),
         timestamp: new Date(),
@@ -72,7 +73,7 @@ export const ChatWindow = forwardRef<ChatWindowRef, ChatWindowProps>(
       }
     };
 
-    const handleKeyPress = (e: React.KeyboardEvent) => {
+    const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         handleSendMessage();
@@ -81,7 +82,7 @@ export const ChatWindow = forwardRef<ChatWindowRef, ChatWindowProps>(
 
     const addAiMessage = (text: string) => {
       const aiMessage: Message = {
-        id: crypto.randomUUID(), 
+        id: crypto.randomUUID(),
         sender: 'ai',
         text,
         timestamp: new Date(),
@@ -90,7 +91,7 @@ export const ChatWindow = forwardRef<ChatWindowRef, ChatWindowProps>(
     };
 
     const addStreamingAiMessage = (): string => {
-      const messageId = crypto.randomUUID(); 
+      const messageId = crypto.randomUUID();
       const aiMessage: Message = {
         id: messageId,
         sender: 'ai',
@@ -103,26 +104,30 @@ export const ChatWindow = forwardRef<ChatWindowRef, ChatWindowProps>(
     };
 
     const updateStreamingMessage = (messageId: string, content: string) => {
-      console.log('Updating message ID:', messageId, 'with content:', content); 
       setMessages(prev => {
         const updated = prev.map(msg => {
           if (msg.id === messageId) {
-            return { ...msg, text: msg.text + content }; 
+            return { ...msg, text: msg.text + content };
           }
-          return msg; 
+          return msg;
         });
         return updated;
       });
     };
 
     const finalizeStreamingMessage = (messageId: string) => {
-      console.log('Finalizing streaming message with ID:', messageId); 
       setMessages(prev => 
-        prev.map(msg => 
-          msg.id === messageId 
-            ? { ...msg, isMessageLoading: false } 
-            : msg
-        )
+        prev
+          .map(msg => 
+            msg.id === messageId 
+              ? { ...msg, isMessageLoading: false }
+              : msg
+          )
+          .filter(msg => 
+            msg.id === messageId 
+              ? msg.text !== ''
+              : true
+          )
       );
     };
 
@@ -173,8 +178,8 @@ export const ChatWindow = forwardRef<ChatWindowRef, ChatWindowProps>(
                     <div
                       className={`max-w-[80%] p-3 rounded-lg ${
                         message.sender === 'user'
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-muted text-muted-foreground'
+                          ? 'bg-primary text-primary-foreground' :
+                          'bg-muted text-muted-foreground'}
                       }`}
                     >
                       <div className="whitespace-pre-wrap break-words">
@@ -202,7 +207,6 @@ export const ChatWindow = forwardRef<ChatWindowRef, ChatWindowProps>(
                   </div>
                 ))
               )}
-              
             </div>
           </ScrollArea>
         </CardContent>
@@ -217,13 +221,24 @@ export const ChatWindow = forwardRef<ChatWindowRef, ChatWindowProps>(
               disabled={isLoading}
               className="flex-1"
             />
-            <Button 
-              onClick={handleSendMessage}
-              disabled={!inputValue.trim() || isLoading}
-              size="icon"
-            >
-              <Send className="h-4 w-4" />
-            </Button>
+            {isLoading ? (
+              <Button 
+                onClick={onStopMessage}
+                disabled={!isLoading}
+                size="icon"
+                variant="destructive"
+              >
+                <Square className="h-4 w-4" />
+              </Button>
+            ) : (
+              <Button 
+                onClick={handleSendMessage}
+                disabled={!inputValue.trim() || isLoading}
+                size="icon"
+              >
+                <Send className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         </div>
       </Card>
@@ -231,4 +246,4 @@ export const ChatWindow = forwardRef<ChatWindowRef, ChatWindowProps>(
   }
 );
 
-ChatWindow.displayName = 'ChatWindow'; 
+ChatWindow.displayName = 'ChatWindow';
