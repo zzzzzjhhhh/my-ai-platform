@@ -1,61 +1,147 @@
 "use client";
 
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { ChatWindow, ChatWindowRef, ChatWindowProps } from './ChatWindow';
+import { ModelSelector } from './ModelSelector';
 
-// Define props for ChatDemo
 interface ChatDemoProps {
-  selectedAgent: ChatWindowProps['selectedAgent']; // Use type from ChatWindowProps
+  selectedAgent: ChatWindowProps['selectedAgent']; 
 }
 
 export function ChatDemo({ selectedAgent }: ChatDemoProps) {
   const chatRef = useRef<ChatWindowRef>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedModel, setSelectedModel] = useState('deepseek/deepseek-r1-0528:free');
+  const eventSourceRef = useRef<EventSource | null>(null);
 
-  // Mock function to simulate sending a message to AI
+  // Cleanup EventSource on unmount
+  useEffect(() => {
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+      }
+    };
+  }, []);
+
   const handleSendMessage = async (message: string) => {
-    if (!message.trim() || !selectedAgent?.instructions) return; // Ensure instructions are available
+    if (!message.trim() || !selectedAgent?.instructions) return;
     
-    setIsLoading(true);
-    
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
-    
-    // Construct the mock prompt using agent instructions and user message
-    const fullPrompt = `Agent Instructions:\n${selectedAgent.instructions}\n\nUser Message:\n${message}`;
-    
-    // In a real implementation, this fullPrompt would be sent to the backend API
-    // and the backend would call the Gemini LLM.
-    
-    // For this demo, display the constructed prompt as the AI response
-    if (chatRef.current) {
-      chatRef.current.addAiMessage(`(Mock AI Response - Constructed Prompt):\n${fullPrompt}`);
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
     }
     
-    setIsLoading(false);
-  };
+    setIsLoading(true);
+    setError(null);
+    
+    let currentMessageId: string | null = null;
+    
+    try {
+      if (chatRef.current) {
+        currentMessageId = chatRef.current.addStreamingAiMessage();
+      }
+      const params = new URLSearchParams({
+        message: message.trim(),
+        agentInstructions: selectedAgent.instructions,
+        model: selectedModel
+      });
 
-  // Function to add a demo message for testing (keep for now, could be useful)
-  // const addDemoMessage = () => {
-  //   if (chatRef.current) {
-  //     chatRef.current.addAiMessage("This is a demo AI message to test the chat interface!");
-  //   }
-  // };
+      const eventSource = new EventSource(`/api/chat?${params}`);
+      eventSourceRef.current = eventSource;
+
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          
+          if (data.error) {
+            throw new Error(data.error);
+          }
+
+          if (data.content && chatRef.current && currentMessageId) {
+            chatRef.current.updateStreamingMessage(currentMessageId, data.content);
+          }
+        } catch (parseError) {
+          console.error('Error parsing SSE data:', parseError);
+        }
+      };
+
+      eventSource.addEventListener('done', () => {
+        if (chatRef.current && currentMessageId) {
+          chatRef.current.finalizeStreamingMessage(currentMessageId);
+        }
+        eventSource.close();
+        eventSourceRef.current = null;
+        setIsLoading(false);
+      });
+
+      eventSource.onerror = (error) => {
+        console.error('EventSource error:', error);
+        setError('Connection error. Please try again.');
+        
+        if (chatRef.current) {
+          chatRef.current.addAiMessage(
+            'Sorry, I encountered a connection error. Please try again.'
+          );
+        }
+        
+        eventSource.close();
+        eventSourceRef.current = null;
+        setIsLoading(false);
+      };
+
+      eventSource.onopen = () => {
+        console.log('SSE connection opened');
+      };
+
+    } catch (error) {
+      console.error('Error sending message:', error);
+      setError(error instanceof Error ? error.message : 'An unexpected error occurred');
+      
+      if (chatRef.current) {
+        chatRef.current.addAiMessage(
+          `Sorry, I encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`
+        );
+      }
+      
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="container mx-auto py-8 space-y-6">
       <div className="text-center space-y-2">
-        <h1 className="text-3xl font-bold">AI Agent Chat Demo</h1>
+        <h1 className="text-3xl font-bold">AI Agent Chat</h1>
         <p className="text-muted-foreground">
           Chatting with: <span className="font-semibold">{selectedAgent?.name || 'Loading...'}</span>
         </p>
-         {!selectedAgent?.instructions && (
-          <p className="text-sm text-destructive">Agent instructions not available. Please select an agent from the AI Agents page.</p>
-         )}
+        {!selectedAgent?.instructions && (
+          <p className="text-sm text-destructive">
+            Agent instructions not available. Please select an agent from the AI Agents page.
+          </p>
+        )}
+        {error && (
+          <div className="text-sm text-destructive bg-red-50 p-3 rounded-md border border-red-200">
+            <p className="font-semibold">Error:</p>
+            <p>{error}</p>
+          </div>
+        )}
       </div>
 
-      {/* Chat Interface */}
-      {/* Pass selectedAgent prop to ChatWindow */}
+      <div className="max-w-md mx-auto">
+        <label className="block text-sm font-medium text-muted-foreground mb-2">
+          AI Model
+        </label>
+        <ModelSelector
+          selectedModel={selectedModel}
+          onModelChange={setSelectedModel}
+          disabled={isLoading}
+        />
+      </div>
+
       <ChatWindow
         ref={chatRef}
         selectedAgent={selectedAgent}
@@ -63,10 +149,10 @@ export function ChatDemo({ selectedAgent }: ChatDemoProps) {
         isLoading={isLoading}
       />
       
-      <div className="text-center text-sm text-muted-foreground mt-4 p-4 border rounded-md bg-yellow-50">
-        <p className="font-semibold">Note:</p>
-        <p>This is a UI demo. The AI responses are currently simulated and show the constructed prompt (Agent Instructions + User Message) instead of a real LLM response.</p>
-        <p>Actual LLM integration will be done in a future task.</p>
+      <div className="text-center text-sm text-muted-foreground mt-4 p-4 border rounded-md bg-blue-50">
+        <p className="font-semibold">🤖 Powered by OpenRouter</p>
+        <p>This chat is powered by AI models from OpenRouter. Your agent's instructions guide the AI's responses.</p>
+        <p className="text-xs mt-1">Current model: {selectedModel}</p>
       </div>
     </div>
   );

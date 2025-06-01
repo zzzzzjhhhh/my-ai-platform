@@ -74,7 +74,7 @@ async function handleChatRequest(message: string | null, agentInstructions: stri
           }
         ],
         temperature: 0.7,
-        max_tokens: 10000,
+        max_tokens: 8000,
         stream: true
       }),
     });

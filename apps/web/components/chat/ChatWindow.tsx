@@ -13,6 +13,7 @@ export interface Message {
   sender: 'user' | 'ai';
   text: string;
   timestamp: Date;
+  isMessageLoading?: boolean;
 }
 
 export interface ChatWindowProps {
@@ -28,6 +29,9 @@ export interface ChatWindowProps {
 
 export type ChatWindowRef = {
   addAiMessage: (text: string) => void;
+  addStreamingAiMessage: () => string;
+  updateStreamingMessage: (messageId: string, content: string) => void;
+  finalizeStreamingMessage: (messageId: string) => void;
 };
 
 export const ChatWindow = forwardRef<ChatWindowRef, ChatWindowProps>(
@@ -35,8 +39,7 @@ export const ChatWindow = forwardRef<ChatWindowRef, ChatWindowProps>(
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputValue, setInputValue] = useState('');
     const scrollAreaRef = useRef<HTMLDivElement>(null);
-    console.log(messages, 'messages')
-    // Auto-scroll to bottom when new messages are added
+    
     useEffect(() => {
       if (scrollAreaRef.current) {
         const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
@@ -50,25 +53,22 @@ export const ChatWindow = forwardRef<ChatWindowRef, ChatWindowProps>(
       if (!inputValue.trim() || isLoading) return;
 
       const newMessage: Message = {
-        id: Date.now().toString(),
+        id: crypto.randomUUID(), 
         sender: 'user',
         text: inputValue.trim(),
         timestamp: new Date(),
       };
 
-      // Add user message immediately
       setMessages(prev => [...prev, newMessage]);
       const messageText = inputValue.trim();
       setInputValue('');
 
       try {
-        // Call the onSendMessage callback if provided
         if (onSendMessage) {
           await onSendMessage(messageText);
         }
       } catch (error) {
         console.error('Error sending message:', error);
-        // You could add error handling UI here
       }
     };
 
@@ -79,10 +79,9 @@ export const ChatWindow = forwardRef<ChatWindowRef, ChatWindowProps>(
       }
     };
 
-    // Function to add AI response (will be called from parent component)
     const addAiMessage = (text: string) => {
       const aiMessage: Message = {
-        id: Date.now().toString(),
+        id: crypto.randomUUID(), 
         sender: 'ai',
         text,
         timestamp: new Date(),
@@ -90,9 +89,48 @@ export const ChatWindow = forwardRef<ChatWindowRef, ChatWindowProps>(
       setMessages(prev => [...prev, aiMessage]);
     };
 
-    // Expose addAiMessage through ref
+    const addStreamingAiMessage = (): string => {
+      const messageId = crypto.randomUUID(); 
+      const aiMessage: Message = {
+        id: messageId,
+        sender: 'ai',
+        text: '',
+        timestamp: new Date(),
+        isMessageLoading: true,
+      };
+      setMessages(prev => [...prev, aiMessage]);
+      return messageId;
+    };
+
+    const updateStreamingMessage = (messageId: string, content: string) => {
+      console.log('Updating message ID:', messageId, 'with content:', content); 
+      setMessages(prev => {
+        const updated = prev.map(msg => {
+          if (msg.id === messageId) {
+            return { ...msg, text: msg.text + content }; 
+          }
+          return msg; 
+        });
+        return updated;
+      });
+    };
+
+    const finalizeStreamingMessage = (messageId: string) => {
+      console.log('Finalizing streaming message with ID:', messageId); 
+      setMessages(prev => 
+        prev.map(msg => 
+          msg.id === messageId 
+            ? { ...msg, isMessageLoading: false } 
+            : msg
+        )
+      );
+    };
+
     useImperativeHandle(ref, () => ({
       addAiMessage,
+      addStreamingAiMessage,
+      updateStreamingMessage,
+      finalizeStreamingMessage,
     }));
 
     return (
@@ -121,9 +159,7 @@ export const ChatWindow = forwardRef<ChatWindowRef, ChatWindowProps>(
                 messages.map((message) => (
                   <div
                     key={message.id}
-                    className={`flex gap-3 ${
-                      message.sender === 'user' ? 'justify-end' : 'justify-start'
-                    }`}
+                    className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
                     {message.sender === 'ai' && (
                       <Avatar className="h-8 w-8 mt-1">
@@ -135,19 +171,25 @@ export const ChatWindow = forwardRef<ChatWindowRef, ChatWindowProps>(
                     )}
                     
                     <div
-                      className={`max-w-[70%] rounded-lg px-4 py-2 ${
+                      className={`max-w-[80%] p-3 rounded-lg ${
                         message.sender === 'user'
-                          ? 'bg-primary text-primary-foreground ml-12'
-                          : 'bg-muted mr-12'
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted text-muted-foreground'
                       }`}
                     >
-                      <p className="text-sm whitespace-pre-wrap">{message.text}</p>
-                      <span className="text-xs opacity-70 mt-1 block">
-                        {message.timestamp.toLocaleTimeString([], { 
-                          hour: '2-digit', 
-                          minute: '2-digit' 
-                        })}
-                      </span>
+                      <div className="whitespace-pre-wrap break-words">
+                        {message.text}
+                        {message.sender === 'ai' && message.text === '' && message.isMessageLoading && (
+                          <span className="inline-flex items-center">
+                            <span className="animate-pulse">●</span>
+                            <span className="animate-pulse animation-delay-200">●</span>
+                            <span className="animate-pulse animation-delay-400">●</span>
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs opacity-70 mt-1">
+                        {message.timestamp.toLocaleTimeString()}
+                      </div>
                     </div>
                     
                     {message.sender === 'user' && (
@@ -161,24 +203,6 @@ export const ChatWindow = forwardRef<ChatWindowRef, ChatWindowProps>(
                 ))
               )}
               
-              {isLoading && (
-                <div className="flex gap-3 justify-start">
-                  <Avatar className="h-8 w-8 mt-1">
-                    <AvatarImage src={selectedAgent?.avatar} alt={selectedAgent?.name} />
-                    <AvatarFallback>
-                      <Bot className="h-4 w-4" />
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="bg-muted rounded-lg px-4 py-2 mr-12">
-                    <div className="flex items-center gap-1">
-                      <div className="w-2 h-2 bg-current rounded-full animate-pulse" />
-                      <div className="w-2 h-2 bg-current rounded-full animate-pulse delay-75" />
-                      <div className="w-2 h-2 bg-current rounded-full animate-pulse delay-150" />
-                    </div>
-                    <span className="text-xs opacity-70 mt-1 block">AI is typing...</span>
-                  </div>
-                </div>
-              )}
             </div>
           </ScrollArea>
         </CardContent>
