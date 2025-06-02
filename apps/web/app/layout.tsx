@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
+import "../styles/markdown.css";
 import { TRPCProvider } from "../components/providers/trpc-provider";
 import { AuthProvider } from "../components/providers/auth-provider";
 

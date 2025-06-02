@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Markdown } from '@/components/ui/markdown';
 import {
   Send,
   Bot,
@@ -306,22 +307,26 @@ export const ChatWindow = forwardRef<ChatWindowRef, ChatWindowProps>(
                               </div>
                             ) : (
                               <>
-                                <div className='whitespace-pre-wrap break-words'>
-                                  {message.text}
-                                  {message.sender === 'ai' &&
-                                    message.text === '' &&
-                                    message.isMessageLoading && (
-                                      <span className='inline-flex items-center'>
-                                        <span className='animate-pulse'>●</span>
-                                        <span className='animate-pulse animation-delay-200'>
-                                          ●
-                                        </span>
-                                        <span className='animate-pulse animation-delay-400'>
-                                          ●
-                                        </span>
-                                      </span>
-                                    )}
+                                <div className={message.sender === 'user' ? 'whitespace-pre-wrap break-words' : 'break-words'}>
+                                  {message.sender === 'ai' ? (
+                                    <Markdown content={message.text} />
+                                  ) : (
+                                    message.text
+                                  )}
                                 </div>
+                                {message.sender === 'ai' &&
+                                  message.text === '' &&
+                                  message.isMessageLoading && (
+                                    <span className='inline-flex items-center mt-2'>
+                                      <span className='animate-pulse'>●</span>
+                                      <span className='animate-pulse animation-delay-200'>
+                                        ●
+                                      </span>
+                                      <span className='animate-pulse animation-delay-400'>
+                                        ●
+                                      </span>
+                                    </span>
+                                  )}
                                 <div className='text-xs opacity-70 mt-1'>
                                   {message.timestamp.toLocaleTimeString()}
                                 </div>
