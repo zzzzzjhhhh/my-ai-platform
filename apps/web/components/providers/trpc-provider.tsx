@@ -6,7 +6,7 @@ import { createTRPCReact } from '@trpc/react-query';
 import { useState } from 'react';
 
 // Import the AppRouter type from the API service
-import type { AppRouter } from '../../../api-service/server/router';
+import type { AppRouter } from '@/server/router';
 
 export const trpc = createTRPCReact<AppRouter>();
 
@@ -14,7 +14,7 @@ function getBaseUrl() {
   if (typeof window !== 'undefined') {
     // browser should use relative path for deployments, but absolute for local dev
     if (process.env.NODE_ENV === 'development') {
-      return 'http://localhost:3001';
+      return 'http://localhost:3000';
     } else {
       return ''; // Use relative path in deployed environments
     }
@@ -29,7 +29,7 @@ function getBaseUrl() {
     return `http://${process.env.RENDER_INTERNAL_HOSTNAME}:${process.env.PORT}`;
 
   // assume localhost server-side
-  return `http://localhost:3001`;
+  return `http://localhost:3000`;
 }
 
 export function TRPCProvider({ children }: { children: React.ReactNode }) {

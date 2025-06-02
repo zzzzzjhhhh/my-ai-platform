@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef, useState, useEffect } from 'react';
-import { ChatWindow, ChatWindowRef, ChatWindowProps } from './ChatWindow';
+import { ChatWindow, ChatWindowRef, ChatWindowProps, Message } from './ChatWindow';
 import { ModelSelector } from './ModelSelector';
 
 interface ChatDemoProps {
@@ -46,7 +46,7 @@ export function ChatDemo({ selectedAgent }: ChatDemoProps) {
      currentMessageIdRef.current = null;
   };
 
-  const handleSendMessage = (message: string) => {
+  const handleSendMessage = (message: string, messageHistory: Message[]) => {
     if (!message.trim() || !selectedAgent?.instructions) return;
     
     if (eventSourceRef.current) {
@@ -61,50 +61,103 @@ export function ChatDemo({ selectedAgent }: ChatDemoProps) {
         const newMessageId = chatRef.current.addStreamingAiMessage();
         currentMessageIdRef.current = newMessageId;
       }
-      const params = new URLSearchParams({
-        message: message.trim(),
+
+      const conversationHistory = messageHistory.map(msg => ({
+        role: msg.sender === 'user' ? 'user' : 'assistant',
+        content: msg.text
+      }));
+
+      const requestBody = {
+        messages: conversationHistory,
         agentInstructions: selectedAgent.instructions,
         model: selectedModel
-      });
-
-      const eventSource = new EventSource(`/api/chat?${params}`);
-      eventSourceRef.current = eventSource;
-
-      eventSource.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          
-          if (data.error) {
-            throw new Error(data.error);
-          }
-
-          if (data.content && chatRef.current && currentMessageIdRef.current) {
-            chatRef.current.updateStreamingMessage(currentMessageIdRef.current, data.content);
-          }
-        } catch (parseError) {
-          console.error('Error parsing SSE data:', parseError);
-        }
       };
 
-      eventSource.addEventListener('done', () => {
-        console.log('SSE stream done');
-        if (chatRef.current && currentMessageIdRef.current) {
-          chatRef.current.finalizeStreamingMessage(currentMessageIdRef.current);
+      fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody)
+      }).then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
         }
-        eventSource.close();
-        eventSourceRef.current = null;
-        currentMessageIdRef.current = null;
-        setIsLoading(false);
-      });
+        
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
 
-      eventSource.onerror = (error) => {
-        console.error('EventSource error:', error);
+        if (!reader) {
+          throw new Error('No response body');
+        }
+
+        const readStream = async () => {
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              
+              if (done) {
+                if (chatRef.current && currentMessageIdRef.current) {
+                  chatRef.current.finalizeStreamingMessage(currentMessageIdRef.current);
+                }
+                currentMessageIdRef.current = null;
+                setIsLoading(false);
+                break;
+              }
+
+              const chunk = decoder.decode(value);
+              const lines = chunk.split('\n');
+
+              for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                  const data = line.slice(6);
+                  
+                  if (data === '{}' || data.includes('event: done')) {
+                    continue;
+                  }
+
+                  try {
+                    const parsed = JSON.parse(data);
+                    
+                    if (parsed.error) {
+                      throw new Error(parsed.error);
+                    }
+
+                    if (parsed.content && chatRef.current && currentMessageIdRef.current) {
+                      chatRef.current.updateStreamingMessage(currentMessageIdRef.current, parsed.content);
+                    }
+                  } catch (parseError) {
+                    // Skip invalid JSON chunks
+                    continue;
+                  }
+                }
+              }
+            }
+          } catch (streamError) {
+            console.error('Stream reading error:', streamError);
+            setError('Error reading response stream. Please try again.');
+            
+            if (chatRef.current && currentMessageIdRef.current) {
+              chatRef.current.finalizeStreamingMessage(currentMessageIdRef.current);
+              chatRef.current.addAiMessage(
+                'Sorry, I encountered an error while reading the response. Please try again.'
+              );
+            }
+            
+            currentMessageIdRef.current = null;
+            setIsLoading(false);
+          }
+        };
+
+        readStream();
+      }).catch(fetchError => {
+        console.error('Fetch error:', fetchError);
         setError('Connection error. Please try again.');
         
         if (chatRef.current && currentMessageIdRef.current) {
-           chatRef.current.finalizeStreamingMessage(currentMessageIdRef.current);
-           chatRef.current.addAiMessage(
-            'Sorry, I encountered a connection error while streaming. Please try again.'
+          chatRef.current.finalizeStreamingMessage(currentMessageIdRef.current);
+          chatRef.current.addAiMessage(
+            'Sorry, I encountered a connection error. Please try again.'
           );
         } else if (chatRef.current) {
           chatRef.current.addAiMessage(
@@ -112,15 +165,9 @@ export function ChatDemo({ selectedAgent }: ChatDemoProps) {
           );
         }
         
-        eventSource.close();
-        eventSourceRef.current = null;
         currentMessageIdRef.current = null;
         setIsLoading(false);
-      };
-
-      eventSource.onopen = () => {
-        console.log('SSE connection opened');
-      };
+      });
 
     } catch (error) {
       console.error('Error sending message:', error);
@@ -132,10 +179,6 @@ export function ChatDemo({ selectedAgent }: ChatDemoProps) {
         );
       }
       
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
-      }
       currentMessageIdRef.current = null;
       setIsLoading(false);
     }

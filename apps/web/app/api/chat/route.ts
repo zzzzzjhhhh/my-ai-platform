@@ -1,20 +1,33 @@
 import { NextRequest } from 'next/server';
 
-// Handle GET requests for EventSource
+// Handle GET requests for EventSource (backward compatibility)
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const message = searchParams.get('message');
   const agentInstructions = searchParams.get('agentInstructions');
   const model = searchParams.get('model') || 'deepseek/deepseek-r1-0528:free';
 
-  return handleChatRequest(message, agentInstructions, model);
+  // Convert single message to messages array for backward compatibility
+  const messages = message ? [{ role: 'user', content: message }] : [];
+  
+  return handleChatRequest(messages, agentInstructions, model);
 }
 
-// Handle POST requests (fallback)
+// Handle POST requests with full conversation history
 export async function POST(request: NextRequest) {
   try {
-    const { message, agentInstructions, model = 'deepseek/deepseek-r1-0528:free' } = await request.json();
-    return handleChatRequest(message, agentInstructions, model);
+    const { message, messages, agentInstructions, model = 'deepseek/deepseek-r1-0528:free' } = await request.json();
+    
+    let conversationMessages;
+    if (messages && Array.isArray(messages)) {
+      conversationMessages = messages;
+    } else if (message) {
+      conversationMessages = [{ role: 'user', content: message }];
+    } else {
+      conversationMessages = [];
+    }
+    
+    return handleChatRequest(conversationMessages, agentInstructions, model);
   } catch (error) {
     console.error('Error parsing POST body:', error);
     return new Response(
@@ -27,11 +40,11 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function handleChatRequest(message: string | null, agentInstructions: string | null, model: string) {
+async function handleChatRequest(messages: Array<{role: string, content: string}>, agentInstructions: string | null, model: string) {
   try {
-    if (!message || !agentInstructions) {
+    if (!messages.length || !agentInstructions) {
       return new Response(
-        JSON.stringify({ error: 'Message and agent instructions are required' }),
+        JSON.stringify({ error: 'Messages and agent instructions are required' }),
         { 
           status: 400,
           headers: { 'Content-Type': 'application/json' }
@@ -51,7 +64,15 @@ async function handleChatRequest(message: string | null, agentInstructions: stri
     }
 
     // Construct the system prompt with agent instructions
-    const systemPrompt = `You are an AI assistant with the following persona and instructions:\n\n${agentInstructions}\n\nPlease respond to the user's message according to these instructions.`;
+    const systemPrompt = `You are an AI assistant with the following persona and instructions:\n\n${agentInstructions}\n\nPlease respond to the user's messages according to these instructions.`;
+
+    const conversationMessages = [
+      {
+        role: 'system',
+        content: systemPrompt
+      },
+      ...messages
+    ];
 
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
@@ -63,16 +84,7 @@ async function handleChatRequest(message: string | null, agentInstructions: stri
       },
       body: JSON.stringify({
         model: model,
-        messages: [
-          {
-            role: 'system',
-            content: systemPrompt
-          },
-          {
-            role: 'user',
-            content: message
-          }
-        ],
+        messages: conversationMessages,
         temperature: 0.7,
         max_tokens: 8000,
         stream: true
@@ -91,16 +103,7 @@ async function handleChatRequest(message: string | null, agentInstructions: stri
       );
     }
 
-    // Alternative: Direct pipe (would require frontend to handle OpenRouter's format)
-    // return new Response(response.body, {
-    //   headers: {
-    //     'Content-Type': 'text/event-stream',
-    //     'Cache-Control': 'no-cache',
-    //     'Connection': 'keep-alive',
-    //   },
-    // });
 
-    // Current approach: Transform OpenRouter's stream for EventSource compatibility
     const stream = new ReadableStream({
       async start(controller) {
         const reader = response.body?.getReader();
@@ -117,7 +120,6 @@ async function handleChatRequest(message: string | null, agentInstructions: stri
             const { done, value } = await reader.read();
             
             if (done) {
-              // Send completion event
               controller.enqueue(new TextEncoder().encode('event: done\ndata: {}\n\n'));
               controller.close();
               break;
@@ -141,7 +143,6 @@ async function handleChatRequest(message: string | null, agentInstructions: stri
                   const content = parsed.choices?.[0]?.delta?.content;
                   
                   if (content) {
-                    // Send the content chunk as SSE for EventSource
                     controller.enqueue(
                       new TextEncoder().encode(`data: ${JSON.stringify({ content })}\n\n`)
                     );

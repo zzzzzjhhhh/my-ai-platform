@@ -38,7 +38,7 @@ export interface ChatWindowProps {
     avatar?: string;
     instructions?: string;
   };
-  onSendMessage?: (message: string) => void;
+  onSendMessage?: (message: string, messageHistory: Message[]) => void;
   isLoading?: boolean;
   onStopMessage?: () => void;
 }
@@ -82,11 +82,12 @@ export const ChatWindow = forwardRef<ChatWindowRef, ChatWindowProps>(
         timestamp: new Date(),
       };
 
-      setMessages(prev => [...prev, newMessage]);
+      const updatedMessages = [...messages, newMessage];
+      setMessages(updatedMessages);
       const messageText = inputValue.trim();
       setLastUserMessage(messageText);
       setInputValue('');
-      onSendMessage?.(messageText);
+      onSendMessage?.(messageText, updatedMessages);
     };
 
     const handleResendMessage = async () => {
@@ -98,9 +99,10 @@ export const ChatWindow = forwardRef<ChatWindowRef, ChatWindowProps>(
         text: lastUserMessage,
         timestamp: new Date(),
       };
-      setMessages(prev => prev.slice(0, -2));
-      setMessages(prev => [...prev, newMessage]);
-      onSendMessage?.(lastUserMessage);
+      const messagesWithoutLastTwo = messages.slice(0, -2);
+      const updatedMessages = [...messagesWithoutLastTwo, newMessage];
+      setMessages(updatedMessages);
+      onSendMessage?.(lastUserMessage, updatedMessages);
     };
 
     const handleEditMessage = (messageId: string, currentText: string) => {
@@ -116,22 +118,21 @@ export const ChatWindow = forwardRef<ChatWindowRef, ChatWindowProps>(
     const handleUpdateMessage = async () => {
       if (!editingText.trim() || !editingMessageId || isLoading) return;
 
-      setMessages(prev =>
-        prev.map(msg =>
-          msg.id === editingMessageId
-            ? { ...msg, text: editingText.trim() }
-            : msg
-        )
+      const updatedMessages = messages.map(msg =>
+        msg.id === editingMessageId
+          ? { ...msg, text: editingText.trim() }
+          : msg
       );
+      setMessages(updatedMessages);
 
       setEditingMessageId(null);
       setEditingText('');
 
-      setMessages(prev =>
-        prev.filter((msg, index) => index !== prev.length - 1)
-      );
+      // Remove the last AI response and resend with updated message
+      const messagesWithoutLastAI = updatedMessages.filter((msg, index) => index !== updatedMessages.length - 1);
+      setMessages(messagesWithoutLastAI);
       setLastUserMessage(editingText.trim());
-      onSendMessage?.(editingText.trim());
+      onSendMessage?.(editingText.trim(), messagesWithoutLastAI);
     };
 
     const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
