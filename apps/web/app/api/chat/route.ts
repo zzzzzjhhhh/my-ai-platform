@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 // Handle GET requests for EventSource (backward compatibility)
 export async function GET(request: NextRequest) {
@@ -30,12 +30,9 @@ export async function POST(request: NextRequest) {
     return handleChatRequest(conversationMessages, agentInstructions, model);
   } catch (error) {
     console.error('Error parsing POST body:', error);
-    return new Response(
-      JSON.stringify({ error: 'Invalid request body' }),
-      { 
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      }
+    return NextResponse.json(
+      { error: 'Invalid request body' },
+      { status: 400 }
     );
   }
 }
@@ -43,23 +40,17 @@ export async function POST(request: NextRequest) {
 async function handleChatRequest(messages: Array<{role: string, content: string}>, agentInstructions: string | null, model: string) {
   try {
     if (!messages.length || !agentInstructions) {
-      return new Response(
-        JSON.stringify({ error: 'Messages and agent instructions are required' }),
-        { 
-          status: 400,
-          headers: { 'Content-Type': 'application/json' }
-        }
+      return NextResponse.json(
+        { error: 'Messages and agent instructions are required' },
+        { status: 400 }
       );
     }
 
     const openRouterApiKey = process.env.OPENROUTER_API_KEY;
     if (!openRouterApiKey) {
-      return new Response(
-        JSON.stringify({ error: 'OpenRouter API key not configured' }),
-        { 
-          status: 500,
-          headers: { 'Content-Type': 'application/json' }
-        }
+      return NextResponse.json(
+        { error: 'OpenRouter API key not configured' },
+        { status: 500 }
       );
     }
 
@@ -94,15 +85,11 @@ async function handleChatRequest(messages: Array<{role: string, content: string}
     if (!response.ok) {
       const errorData = await response.text();
       console.error('OpenRouter API error:', errorData);
-      return new Response(
-        JSON.stringify({ error: 'Failed to get response from AI model' }),
-        { 
-          status: response.status,
-          headers: { 'Content-Type': 'application/json' }
-        }
+      return NextResponse.json(
+        { error: 'Failed to get response from AI model' },
+        { status: response.status }
       );
     }
-
 
     const stream = new ReadableStream({
       async start(controller) {
@@ -164,7 +151,7 @@ async function handleChatRequest(messages: Array<{role: string, content: string}
       },
     });
 
-    return new Response(stream, {
+    return new NextResponse(stream, {
       headers: {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
@@ -177,12 +164,9 @@ async function handleChatRequest(messages: Array<{role: string, content: string}
 
   } catch (error) {
     console.error('Chat API error:', error);
-    return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
-      { 
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      }
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
     );
   }
 } 
